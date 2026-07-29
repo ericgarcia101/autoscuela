@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*
+!.env.example
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+*.tsbuildinfo
+supabase/.branches
+supabase/.temp
+.claude/settings.local.json
