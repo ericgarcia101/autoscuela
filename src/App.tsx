@@ -21,6 +21,7 @@ import AdminHome from '@/pages/admin/AdminHome'
 import Students from '@/pages/admin/Students'
 import StudentDetail from '@/pages/admin/StudentDetail'
 import AdminInbox from '@/pages/admin/AdminInbox'
+import Practices from '@/pages/admin/Practices'
 import Assignments from '@/pages/admin/Assignments'
 import QuestionBank from '@/pages/admin/QuestionBank'
 import Analytics from '@/pages/admin/Analytics'
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/alumnos" element={<Students />} />
             <Route path="/alumnos/:id" element={<StudentDetail />} />
             <Route path="/mensajes" element={<AdminInbox />} />
+            <Route path="/clases" element={<Practices />} />
             <Route path="/tareas" element={<Assignments />} />
             <Route path="/preguntas" element={<QuestionBank />} />
             <Route path="/analitica" element={<Analytics />} />

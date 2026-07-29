@@ -33,6 +33,7 @@ const STAFF_NAV: NavItem[] = [
   { to: '/', label: 'Panel', icon: LayoutDashboard },
   { to: '/alumnos', label: 'Alumnos', icon: Users },
   { to: '/mensajes', label: 'Mensajes', icon: MessageSquare, badgeKey: 'messages' },
+  { to: '/clases', label: 'Clases prácticas', icon: CalendarDays },
   { to: '/tareas', label: 'Tareas asignadas', icon: ClipboardList },
   { to: '/preguntas', label: 'Banco de preguntas', icon: BookOpen },
   { to: '/analitica', label: 'Analítica', icon: BarChart3 },

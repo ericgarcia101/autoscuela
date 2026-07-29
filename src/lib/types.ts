@@ -242,6 +242,19 @@ export interface Exam {
   notes: string | null
 }
 
+export interface Announcement {
+  id: string
+  school_id: string
+  title: string
+  body: string
+  pinned: boolean
+  audience: 'all' | 'students' | 'staff'
+  publish_at: string
+  expires_at: string | null
+  created_by: string | null
+  created_at: string
+}
+
 export interface StudentStats {
   student_id: string
   points: number

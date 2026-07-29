@@ -3,13 +3,15 @@ import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import {
   AlarmClock, ArrowRight, Award, CalendarDays, CheckCircle2, Flame, GraduationCap,
-  Play, Sparkles, Target, TrendingUp, Trophy,
+  Megaphone, Play, Sparkles, Target, TrendingUp, Trophy,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { dateTime, pct, relative } from '@/lib/format'
 import { Badge, Button, Card, EmptyState, PageLoader, ProgressBar, StatTile } from '@/components/ui'
-import type { Assignment, Exam, Lesson, Readiness, StudentStats, TestSession } from '@/lib/types'
+import type {
+  Announcement, Assignment, Exam, Lesson, Readiness, StudentStats, TestSession,
+} from '@/lib/types'
 
 const VERDICT: Record<Readiness['verdict'], { label: string; tone: string; copy: string }> = {
   listo: {
@@ -42,23 +44,29 @@ export default function Dashboard() {
     queryKey: ['student-home', profile?.id],
     enabled: !!profile?.id,
     queryFn: async () => {
-      const [readiness, stats, sessions, assignments, lessons, exams] = await Promise.all([
-        supabase.rpc('student_readiness'),
-        supabase.from('student_stats').select('*').eq('student_id', profile!.id).maybeSingle(),
-        supabase.from('test_sessions').select('*')
-          .eq('student_id', profile!.id).eq('status', 'completed')
-          .order('finished_at', { ascending: false }).limit(5),
-        supabase.from('assignments').select('*')
-          .eq('student_id', profile!.id).in('status', ['pending', 'in_progress'])
-          .order('due_at', { ascending: true, nullsFirst: false }).limit(5),
-        supabase.from('lessons').select('*')
-          .eq('student_id', profile!.id).eq('status', 'scheduled')
-          .gte('starts_at', new Date().toISOString())
-          .order('starts_at').limit(3),
-        supabase.from('exams').select('*')
-          .eq('student_id', profile!.id).eq('result', 'scheduled')
-          .order('scheduled_at').limit(2),
-      ])
+      const [readiness, stats, sessions, assignments, lessons, exams, announcements] =
+        await Promise.all([
+          supabase.rpc('student_readiness'),
+          supabase.from('student_stats').select('*').eq('student_id', profile!.id).maybeSingle(),
+          supabase.from('test_sessions').select('*')
+            .eq('student_id', profile!.id).eq('status', 'completed')
+            .order('finished_at', { ascending: false }).limit(5),
+          supabase.from('assignments').select('*')
+            .eq('student_id', profile!.id).in('status', ['pending', 'in_progress'])
+            .order('due_at', { ascending: true, nullsFirst: false }).limit(5),
+          supabase.from('lessons').select('*')
+            .eq('student_id', profile!.id).eq('status', 'scheduled')
+            .gte('starts_at', new Date().toISOString())
+            .order('starts_at').limit(3),
+          supabase.from('exams').select('*')
+            .eq('student_id', profile!.id).eq('result', 'scheduled')
+            .order('scheduled_at').limit(2),
+          // El filtro por autoescuela, fechas y audiencia lo aplica la política RLS
+          // "leer anuncios", así que aquí basta con ordenar y limitar.
+          supabase.from('announcements').select('*')
+            .order('pinned', { ascending: false })
+            .order('publish_at', { ascending: false }).limit(5),
+        ])
 
       return {
         readiness: readiness.data as Readiness | null,
@@ -67,6 +75,7 @@ export default function Dashboard() {
         assignments: (assignments.data ?? []) as Assignment[],
         lessons: (lessons.data ?? []) as Lesson[],
         exams: (exams.data ?? []) as Exam[],
+        announcements: (announcements.data ?? []) as Announcement[],
       }
     },
   })
@@ -96,6 +105,33 @@ export default function Dashboard() {
             : ''}
         </p>
       </header>
+
+      {/* Tablón de la autoescuela */}
+      {!!data?.announcements.length && (
+        <section className="space-y-2.5">
+          {data.announcements.map((a) => (
+            <Card
+              key={a.id}
+              className={clsx(
+                'flex items-start gap-3.5 p-4',
+                a.pinned && 'border-brand-300 bg-brand-50/60 dark:border-brand-800 dark:bg-brand-950/30',
+              )}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
+                <Megaphone className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium leading-tight">{a.title}</p>
+                  {a.pinned && <Badge tone="brand">Fijado</Badge>}
+                </div>
+                <p className="mt-1 whitespace-pre-line text-sm text-ink-500">{a.body}</p>
+                <p className="mt-1.5 text-xs text-ink-400">{relative(a.publish_at)}</p>
+              </div>
+            </Card>
+          ))}
+        </section>
+      )}
 
       {/* Índice de preparación */}
       <Card className="overflow-hidden">

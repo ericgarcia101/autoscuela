@@ -12,12 +12,17 @@ import { dateTime, euros, pct, relative, shortDate, STATUS_LABEL } from '@/lib/f
 import { Badge, Button, Card, Field, Modal, PageLoader, ProgressBar, StatTile } from '@/components/ui'
 import AssignTestModal from '@/components/AssignTestModal'
 import type {
-  Assignment, Exam, Lesson, Payment, Profile, Readiness, StudentStatus,
+  Assignment, Exam, Lesson, LicenseClass, Payment, Profile, Readiness, StudentStatus,
   TestSession, TopicBreakdown,
 } from '@/lib/types'
 
 const STATUSES: StudentStatus[] = [
   'lead', 'enrolled', 'theory_pass', 'practical', 'graduated', 'paused', 'dropped',
+]
+
+const LICENSES: LicenseClass[] = [
+  'AM', 'A1', 'A2', 'A', 'B', 'B96', 'BE',
+  'C1', 'C1E', 'C', 'CE', 'D1', 'D1E', 'D', 'DE', 'BTP', 'LCC',
 ]
 
 export default function StudentDetail() {
@@ -29,6 +34,7 @@ export default function StudentDetail() {
   const [editOpen, setEditOpen] = useState(false)
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState<StudentStatus>('enrolled')
+  const [license, setLicense] = useState<LicenseClass>('B')
   const [examDate, setExamDate] = useState('')
 
   const { data, isLoading } = useQuery({
@@ -57,6 +63,7 @@ export default function StudentDetail() {
       const p = profile.data as unknown as Profile
       setNotes(p?.notes ?? '')
       setStatus(p?.status ?? 'enrolled')
+      setLicense(p?.target_license ?? 'B')
       setExamDate(p?.theory_exam_date ?? '')
 
       return {
@@ -79,6 +86,7 @@ export default function StudentDetail() {
         .update({
           notes,
           status,
+          target_license: license,
           theory_exam_date: examDate || null,
         })
         .eq('id', id!)
@@ -160,7 +168,7 @@ export default function StudentDetail() {
         <StatTile
           label="Cobertura del temario"
           value={pct(data.readiness?.coverage, 1)}
-          hint="Del banco de preguntas"
+          hint={`Del banco del permiso ${p.target_license}`}
           icon={<ClipboardList className="h-5 w-5" />}
         />
         <StatTile
@@ -374,6 +382,21 @@ export default function StudentDetail() {
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field
+          label="Permiso al que se presenta"
+          hint="Determina qué preguntas y tests ve el alumno, y sobre qué banco se mide su cobertura."
+        >
+          <select
+            className="input"
+            value={license}
+            onChange={(e) => setLicense(e.target.value as LicenseClass)}
+          >
+            {LICENSES.map((l) => (
+              <option key={l} value={l}>{l}</option>
             ))}
           </select>
         </Field>

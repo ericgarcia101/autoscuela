@@ -71,7 +71,8 @@ export default function Progress() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Mi progreso</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Cobertura del temario: {pct(data?.readiness?.coverage, 1)} del banco de preguntas visto.
+          Cobertura del temario: {pct(data?.readiness?.coverage, 1)} de las preguntas del
+          permiso {profile?.target_license ?? 'B'} vistas.
         </p>
       </header>
 

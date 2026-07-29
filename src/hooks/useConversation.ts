@@ -37,6 +37,11 @@ export function useConversation({
     if (fixedId || !studentId || !schoolId) return
     let cancelled = false
 
+    // Al cambiar de alumno hay que soltar el hilo anterior: si no, se verían
+    // por un instante los mensajes de la conversación que estaba abierta.
+    setConversationId(null)
+    setMessages([])
+
     ;(async () => {
       const { data: existing } = await supabase
         .from('conversations')

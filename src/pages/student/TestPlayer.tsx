@@ -181,11 +181,12 @@ export default function TestPlayer() {
         return
       }
 
-      // Sin corrección al momento, el test avanza solo
+      // Sin corrección al momento, el test avanza solo. En la última pregunta se
+      // queda quieto: cerrar el test es siempre una decisión explícita del alumno.
       if (!instant) {
         setTimeout(() => {
           setCurrent((c) => {
-            if (c + 1 >= questions.length) { void finish(); return c }
+            if (c + 1 >= questions.length) return c
             questionStartedAt.current = Date.now()
             return c + 1
           })

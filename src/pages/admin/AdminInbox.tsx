@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useConversation } from '@/hooks/useConversation'
 import ChatThread from '@/components/ChatThread'
-import { Badge, Card, EmptyState, PageLoader } from '@/components/ui'
+import { Badge, Card, EmptyState, Field, PageLoader } from '@/components/ui'
 import { initials, relative } from '@/lib/format'
 import type { Conversation } from '@/lib/types'
 
@@ -15,10 +15,19 @@ interface Row extends Conversation {
   student: { id: string; full_name: string; email: string | null } | null
 }
 
+interface StudentOption {
+  id: string
+  full_name: string
+  email: string | null
+}
+
 export default function AdminInbox() {
   const { profile, school } = useAuth()
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  // Alumno elegido en el desplegable cuando todavía no hay conversación abierta
+  // con él. `useConversation` la crea al vuelo en cuanto se manda el primero.
+  const [startWith, setStartWith] = useState<string>('')
 
   const { data: conversations, isLoading, refetch } = useQuery({
     queryKey: ['admin-inbox', school?.id],
@@ -36,6 +45,23 @@ export default function AdminInbox() {
     },
   })
 
+  // Todos los alumnos de la autoescuela, hayan escrito o no
+  const { data: students } = useQuery({
+    queryKey: ['inbox-students', school?.id],
+    enabled: !!school?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('school_id', school!.id)
+        .eq('role', 'student')
+        .eq('is_active', true)
+        .order('full_name')
+      if (error) throw error
+      return (data ?? []) as StudentOption[]
+    },
+  })
+
   // Mantiene la lista viva: si llega un mensaje nuevo, sube a lo alto
   useEffect(() => {
     const channel = supabase
@@ -47,12 +73,23 @@ export default function AdminInbox() {
 
   const { messages, loading, send } = useConversation({
     conversationId: selected,
+    // Sólo cuando no hay hilo elegido: así el hook busca o crea el del alumno.
+    studentId: selected ? null : startWith || null,
+    schoolId: school?.id ?? null,
     asStaff: true,
   })
 
   useEffect(() => {
-    if (!selected && conversations?.length) setSelected(conversations[0].id)
-  }, [conversations, selected])
+    if (!selected && !startWith && conversations?.length) setSelected(conversations[0].id)
+  }, [conversations, selected, startWith])
+
+  // Si la conversación recién creada ya aparece en la lista, se pasa a ella
+  // para que el hilo quede seleccionado como cualquier otro.
+  useEffect(() => {
+    if (!startWith) return
+    const existing = conversations?.find((c) => c.student?.id === startWith)
+    if (existing) { setSelected(existing.id); setStartWith('') }
+  }, [conversations, startWith])
 
   if (isLoading) return <PageLoader />
 
@@ -61,6 +98,10 @@ export default function AdminInbox() {
     (c.student?.full_name ?? '').toLowerCase().includes(search.toLowerCase()),
   )
   const active = conversations?.find((c) => c.id === selected)
+  // Con quién se está hablando: el hilo abierto, o el alumno recién elegido
+  // en el desplegable si todavía no tiene conversación.
+  const pending = startWith ? students?.find((s) => s.id === startWith) : undefined
+  const peer = active?.student ?? pending ?? null
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
@@ -71,22 +112,36 @@ export default function AdminInbox() {
         </p>
       </header>
 
-      {!conversations?.length ? (
-        <EmptyState
-          icon={<MessageSquare className="h-8 w-8" />}
-          title="Sin conversaciones"
-          description="Cuando un alumno te escriba, aparecerá aquí."
-        />
-      ) : (
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px_1fr]">
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px_1fr]">
           {/* Lista */}
           <Card className="flex min-h-0 flex-col overflow-hidden">
-            <div className="border-b border-ink-200 p-3 dark:border-ink-800">
+            <div className="space-y-3 border-b border-ink-200 p-3 dark:border-ink-800">
+              <Field label="Escribir a un alumno">
+                <select
+                  className="input"
+                  value={startWith || (active?.student?.id ?? '')}
+                  onChange={(e) => {
+                    const id = e.target.value
+                    if (!id) return
+                    const existing = conversations?.find((c) => c.student?.id === id)
+                    if (existing) { setSelected(existing.id); setStartWith('') }
+                    else { setSelected(null); setStartWith(id) }
+                  }}
+                >
+                  <option value="">Elige un alumno…</option>
+                  {(students ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.full_name || s.email || 'Alumno'}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
                 <input
                   className="input pl-10"
-                  placeholder="Buscar alumno…"
+                  placeholder="Buscar en conversaciones…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -94,6 +149,12 @@ export default function AdminInbox() {
             </div>
 
             <div className="thin-scroll flex-1 overflow-y-auto">
+              {!conversations?.length && (
+                <p className="px-4 py-8 text-center text-sm text-ink-500">
+                  Todavía no hay conversaciones. Elige un alumno arriba para
+                  escribirle el primero.
+                </p>
+              )}
               {filtered.map((c) => (
                 <button
                   key={c.id}
@@ -131,38 +192,43 @@ export default function AdminInbox() {
 
           {/* Conversación */}
           <Card className="flex min-h-0 flex-col bg-ink-50 dark:bg-ink-950/50">
-            {active && (
+            {peer && (
               <div className="flex items-center gap-3 border-b border-ink-200 px-4 py-3 dark:border-ink-800">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-200 text-xs font-semibold text-ink-700 dark:bg-ink-700 dark:text-ink-200">
-                  {initials(active.student?.full_name || '?')}
+                  {initials(peer.full_name || '?')}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{active.student?.full_name}</p>
-                  <p className="truncate text-xs text-ink-500">{active.student?.email}</p>
+                  <p className="truncate font-medium">{peer.full_name}</p>
+                  <p className="truncate text-xs text-ink-500">{peer.email}</p>
                 </div>
-                {active.student && (
-                  <Link
-                    to={`/alumnos/${active.student.id}`}
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40"
-                  >
-                    <User className="h-4 w-4" /> Ver ficha
-                  </Link>
-                )}
+                <Link
+                  to={`/alumnos/${peer.id}`}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40"
+                >
+                  <User className="h-4 w-4" /> Ver ficha
+                </Link>
               </div>
             )}
 
             <div className="flex min-h-0 flex-1 flex-col p-4">
-              <ChatThread
-                messages={messages}
-                loading={loading}
-                viewAs="staff"
-                onSend={(body) => send(body, profile!.id)}
-                placeholder="Responder al alumno…"
-              />
+              {peer ? (
+                <ChatThread
+                  messages={messages}
+                  loading={loading}
+                  viewAs="staff"
+                  onSend={(body) => send(body, profile!.id)}
+                  placeholder={`Escribir a ${peer.full_name?.split(' ')[0] || 'el alumno'}…`}
+                />
+              ) : (
+                <EmptyState
+                  icon={<MessageSquare className="h-8 w-8" />}
+                  title="Elige a quién escribir"
+                  description="Selecciona un alumno en el desplegable de la izquierda para abrir su chat."
+                />
+              )}
             </div>
           </Card>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
